@@ -62,19 +62,26 @@ RUN wget -O /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared
 
 # Start script (nur einmal ausführen)
 RUN printf '#!/bin/sh\n\
-# Einmalige Ausführung beim Containerstart\n\
-echo "Starting Proxmox..."\n\
-/sbin/init &\n\
-sleep 10\n\
+echo "[INFO] Starting Proxmox minimal services..."\n\
+pvestatd\n\
+pvedaemon\n\
+pveproxy\n\
+echo "[INFO] Waiting for Proxmox API on :8006..."\n\
+sleep 5\n\
 # Start Cloudflared Tunnel im Hintergrund\n\
 CLOUDFLARED_LOG=/tmp/cloudflared.log\n\
+echo "[INFO] Starting Cloudflared tunnel..."\n\
 cloudflared tunnel --url http://127.0.0.1:8006 --no-autoupdate &> $CLOUDFLARED_LOG &\n\
-# Warten bis die URL verfügbar ist\n\
-until grep -o "https://[a-z0-9\\-]+\\.trycloudflare.com" $CLOUDFLARED_LOG; do sleep 1; done\n\
-TUNNEL_URL=$(grep -o "https://[a-z0-9\\-]+\\.trycloudflare.com" $CLOUDFLARED_LOG)\n\
-echo "Cloudflared URL: $TUNNEL_URL"\n\
-# Container dauerhaft aktiv halten\n\
-wait\n' \
+# URL aus Logs extrahieren\n\
+echo "[INFO] Waiting for tunnel URL..."\n\
+until grep -oE "https://[a-z0-9-]+\\.trycloudflare.com" $CLOUDFLARED_LOG >/dev/null 2>&1; do sleep 1; done\n\
+TUNNEL_URL=$(grep -oE "https://[a-z0-9-]+\\.trycloudflare.com" $CLOUDFLARED_LOG | head -n1)\n\
+echo "======================================"\n\
+echo " CLOUDFLARED URL: $TUNNEL_URL"\n\
+echo " PROXMOX: http://127.0.0.1:8006"\n\
+echo "======================================"\n\
+# Container dauerhaft am Leben halten\n\
+tail -f /dev/null\n' \
 > /start.sh && chmod +x /start.sh
 
 EXPOSE 8006
