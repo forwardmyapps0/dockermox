@@ -10,7 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     sudo \
     tar \
-    lsb-release
+    lsb-release \
+    systemd \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
 
 # Add Proxmox archive keyring
 RUN wget https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg \
@@ -77,7 +80,6 @@ echo "======================================"
 cloudflared tunnel --url http://127.0.0.1:8006 > /tmp/cloudflared.log 2>&1 &
 
 echo "Waiting for Cloudflare tunnel..."
-
 for i in $(seq 1 60); do
     URL=$(grep -o 'https://[-a-zA-Z0-9]*\.trycloudflare\.com' /tmp/cloudflared.log | head -n1)
     if [ -n "$URL" ]; then
@@ -92,7 +94,15 @@ for i in $(seq 1 60); do
     sleep 1
 done
 
-exec /sbin/init
+# Start Proxmox services
+echo "Starting Proxmox services..."
+service pvedaemon start
+service pveproxy start
+service pvestatd start
+
+# Keep container alive
+echo "Container is running. Press CTRL+C to exit."
+tail -f /dev/null
 EOF
 
 EXPOSE 8006
